@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍴 グルメファインダー</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="margin: 0; padding: 0;">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const MapPin = () => <span>📍</span>;
+        const DollarSign = () => <span>💰</span>;
+        const TrendingUp = () => <span>📈</span>;
+        const Filter = () => <span>🔍</span>;
+        const X = () => <span>✕</span>;
+        const Search = () => <span>🔎</span>;
+        const AlertCircle = () => <span>⚠️</span>;
+
+        const RestaurantFinderAPI = () => {
+            const [api_key_input, set_api_key_input] = useState('');
+            const [api_key, set_api_key] = useState('');
+            const [selected_genre, set_selected_genre] = useState('');
+            const [selected_budget, set_selected_budget] = useState('');
+            const [user_location, set_user_location] = useState(null);
+            const [show_filters, set_show_filters] = useState(true);
+            const [restaurants_list, set_restaurants_list] = useState([]);
+            const [is_loading, set_is_loading] = useState(false);
+            const [error_message, set_error_message] = useState('');
+            const [search_range, set_search_range] = useState('3');
+
+            const genre_options = [
+                { code: '', name: 'すべて', icon: '🍽️' },
+                { code: 'G001', name: '居酒屋', icon: '🍻' },
+                { code: 'G002', name: 'ダイニングバー', icon: '🍷' },
+                { code: 'G004', name: '和食', icon: '🍱' },
+                { code: 'G005', name: '洋食', icon: '🍝' },
+                { code: 'G006', name: 'イタリアン', icon: '🇮🇹' },
+                { code: 'G008', name: '中華', icon: '🥟' },
+                { code: 'G017', name: '韓国料理', icon: '🇰🇷' },
+                { code: 'G009', name: '焼肉', icon: '🥩' },
+                { code: 'G013', name: 'バー', icon: '🍸' },
+                { code: 'G014', name: 'ラーメン', icon: '🍜' },
+                { code: 'G015', name: 'カフェ', icon: '☕' }
+            ];
+
+            const budget_options = [
+                { code: '', name: 'すべて', range: '' },
+                { code: 'B009', name: '〜500円', range: '¥' },
+                { code: 'B011', name: '1001〜1500円', range: '¥¥' },
+                { code: 'B002', name: '2001〜3000円', range: '¥¥' },
+                { code: 'B003', name: '3001〜4000円', range: '¥¥¥' },
+                { code: 'B004', name: '5001〜7000円', range: '¥¥¥¥' },
+                { code: 'B005', name: '7001〜10000円', range: '¥¥¥¥' }
+            ];
+
+            const range_options = [
+                { code: '1', name: '300m' },
+                { code: '2', name: '500m' },
+                { code: '3', name: '1000m' },
+                { code: '4', name: '2000m' },
+                { code: '5', name: '3000m' }
+            ];
+
+            useEffect(() => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            set_user_location({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            });
+                        },
+                        (error) => {
+                            set_user_location({ lat: 34.2927, lng: 133.8472 });
+                        }
+                    );
+                } else {
+                    set_user_location({ lat: 34.2927, lng: 133.8472 });
+                }
+            }, []);
+
+            const search_restaurants = async () => {
+                if (!api_key) {
+                    set_error_message('APIキーを入力してください');
+                    return;
+                }
+
+                if (!user_location) {
+                    set_error_message('位置情報を取得できませんでした');
+                    return;
+                }
+
+                set_is_loading(true);
+                set_error_message('');
+
+                try {
+                    const params_object = {
+                        key: api_key,
+                        lat: user_location.lat,
+                        lng: user_location.lng,
+                        range: search_range,
+                        count: 50
+                    };
+
+                    if (selected_genre) params_object.genre = selected_genre;
+                    if (selected_budget) params_object.budget = selected_budget;
+
+                    const params_string = new URLSearchParams(params_object).toString();
+                    const url = `/api/hotpepper?${params_string}`;
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const data = await response.json();
+
+                    if (data.results && data.results.shop) {
+                        set_restaurants_list(data.results.shop);
+                        set_error_message('');
+                    } else if (data.results && data.results.error) {
+                        set_error_message(`エラー: ${data.results.error[0].message}`);
+                        set_restaurants_list([]);
+                    } else {
+                        set_error_message('お店が見つかりませんでした');
+                        set_restaurants_list([]);
+                    }
+                } catch (error) {
+                    set_error_message(`通信エラー: サーバーが起動しているか確認してください`);
+                    set_restaurants_list([]);
+                } finally {
+                    set_is_loading(false);
+                }
+            };
+
+            const handle_api_key_submit = (e) => {
+                e.preventDefault();
+                if (!api_key_input.trim()) {
+                    set_error_message('APIキーを入力してください');
+                    return;
+                }
+                set_api_key(api_key_input.trim());
+            };
+
+            useEffect(() => {
+                if (api_key && user_location) {
+                    const timer = setTimeout(() => search_restaurants(), 300);
+                    return () => clearTimeout(timer);
+                }
+            }, [api_key, selected_genre, selected_budget, search_range, user_location]);
+
+            const get_budget_display = (budget_avg_price) => {
+                if (!budget_avg_price) return '¥¥';
+                const price = parseInt(budget_avg_price);
+                if (price < 1500) return '¥';
+                if (price < 3000) return '¥¥';
+                if (price < 5000) return '¥¥¥';
+                return '¥¥¥¥';
+            };
+
+            const recommended_restaurants = restaurants_list.slice(0, 3);
+
+            return (
+                <div style={{
+                    minHeight: '100vh',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    fontFamily: "'Noto Sans JP', sans-serif"
+                }}>
+                    <div style={{
+                        background: 'rgba(255,255,255,0.95)',
+                        padding: '1.5rem 1rem',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 100,
+                        borderBottom: '3px solid #667eea'
+                    }}>
+                        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <h1 style={{
+                                    margin: 0,
+                                    fontSize: '1.8rem',
+                                    fontWeight: 800,
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent'
+                                }}>
+                                    🍴 グルメファインダー
+                                </h1>
+                                <button onClick={() => set_show_filters(!show_filters)} style={{
+                                    background: show_filters ? '#667eea' : '#fff',
+                                    color: show_filters ? '#fff' : '#667eea',
+                                    border: '2px solid #667eea',
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '50px',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    fontSize: '0.9rem'
+                                }}>
+                                    {show_filters ? <X /> : <Filter />} フィルター
+                                </button>
+                            </div>
+
+                            {!api_key && (
+                                <div style={{ background: '#fff3cd', border: '2px solid #ffc107', borderRadius: '12px', padding: '1rem', marginBottom: '1rem' }}>
+                                    <div style={{ color: '#856404', fontWeight: 700, marginBottom: '0.8rem' }}>
+                                        <AlertCircle /> APIキーが必要です
+                                    </div>
+                                    <p style={{ fontSize: '0.9rem', color: '#856404', margin: '0 0 1rem 0' }}>
+                                        <a href="https://webservice.recruit.co.jp/register" target="_blank" style={{ color: '#667eea', fontWeight: 700 }}>
+                                            リクルートWEBサービス
+                                        </a>でAPIキーを取得してください（無料）
+                                    </p>
+                                    <form onSubmit={handle_api_key_submit} style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input
+                                            type="text"
+                                            value={api_key_input}
+                                            onChange={(e) => set_api_key_input(e.target.value)}
+                                            placeholder="APIキーを入力"
+                                            style={{ flex: 1, padding: '0.8rem', border: '2px solid #ddd', borderRadius: '8px', fontSize: '0.9rem' }}
+                                        />
+                                        <button type="submit" style={{
+                                            background: '#667eea',
+                                            color: '#fff',
+                                            border: 'none',
+                                            padding: '0.8rem 1.5rem',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontWeight: 700
+                                        }}>設定</button>
+                                    </form>
+                                </div>
+                            )}
+
+                            {user_location && (
+                                <div style={{ color: '#666', fontSize: '0.85rem' }}>
+                                    <MapPin /> 現在地周辺のお店 ({restaurants_list.length}件)
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {show_filters && api_key && (
+                        <div style={{ background: '#fff', padding: '2rem 1rem' }}>
+                            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>
+                                        <Search /> 検索範囲
+                                    </h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.8rem' }}>
+                                        {range_options.map(range => (
+                                            <button key={range.code} onClick={() => set_search_range(range.code)} style={{
+                                                background: search_range === range.code ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
+                                                color: search_range === range.code ? '#fff' : '#333',
+                                                border: 'none',
+                                                padding: '0.8rem',
+                                                borderRadius: '12px',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}>{range.name}</button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>料理ジャンル</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.8rem' }}>
+                                        {genre_options.map(genre => (
+                                            <button key={genre.code} onClick={() => set_selected_genre(genre.code)} style={{
+                                                background: selected_genre === genre.code ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
+                                                color: selected_genre === genre.code ? '#fff' : '#333',
+                                                border: 'none',
+                                                padding: '1rem 0.8rem',
+                                                borderRadius: '12px',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}>
+                                                <div style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>{genre.icon}</div>
+                                                {genre.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>
+                                        <DollarSign /> 予算
+                                    </h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.8rem' }}>
+                                        {budget_options.map(budget => (
+                                            <button key={budget.code} onClick={() => set_selected_budget(budget.code)} style={{
+                                                background: selected_budget === budget.code ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
+                                                color: selected_budget === budget.code ? '#fff' : '#333',
+                                                border: 'none',
+                                                padding: '1rem',
+                                                borderRadius: '12px',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}>
+                                                <div style={{ fontSize: '1.2rem', marginBottom: '0.3rem', fontWeight: 700 }}>
+                                                    {budget.range || '全て'}
+                                                </div>
+                                                {budget.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
+                        {is_loading && (
+                            <div style={{ background: 'rgba(255,255,255,0.9)', padding: '3rem', borderRadius: '16px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+                                <p style={{ fontSize: '1.2rem', color: '#666' }}>検索中...</p>
+                            </div>
+                        )}
+
+                        {error_message && (
+                            <div style={{ background: '#f8d7da', border: '2px solid #f5c6cb', borderRadius: '12px', padding: '1rem', marginBottom: '2rem', color: '#721c24' }}>
+                                <AlertCircle /> {error_message}
+                            </div>
+                        )}
+
+                        {!is_loading && recommended_restaurants.length > 0 && (
+                            <div style={{ marginBottom: '3rem' }}>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', marginBottom: '1.5rem', textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
+                                    <TrendingUp /> おすすめ
+                                </h2>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                                    {recommended_restaurants.map((shop, index) => (
+                                        <a key={shop.id} href={shop.urls.pc} target="_blank" style={{
+                                            background: '#fff',
+                                            borderRadius: '16px',
+                                            overflow: 'hidden',
+                                            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                                            border: '3px solid #ffd700',
+                                            textDecoration: 'none',
+                                            color: 'inherit',
+                                            display: 'block',
+                                            position: 'relative'
+                                        }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '12px',
+                                                right: '12px',
+                                                background: '#ffd700',
+                                                color: '#333',
+                                                padding: '0.4rem 0.8rem',
+                                                borderRadius: '20px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 800,
+                                                zIndex: 10
+                                            }}>⭐ TOP {index + 1}</div>
+                                            <div style={{
+                                                width: '100%',
+                                                height: '180px',
+                                                backgroundImage: `url(${shop.photo.pc.l})`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center'
+                                            }} />
+                                            <div style={{ padding: '1.2rem' }}>
+                                                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '0.5rem' }}>{shop.name}</h3>
+                                                <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.8rem' }}>
+                                                    {shop.genre.catch || shop.genre.name}
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666' }}>
+                                                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: '1rem' }}>
+                                                        {get_budget_display(shop.budget.average)}
+                                                    </div>
+                                                    <div style={{ background: '#f0f0f0', padding: '0.3rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                                                        {shop.access}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {!is_loading && restaurants_list.length > 0 && (
+                            <div>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', marginBottom: '1.5rem', textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
+                                    すべてのお店 ({restaurants_list.length}件)
+                                </h2>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                                    {restaurants_list.map(shop => (
+                                        <a key={shop.id} href={shop.urls.pc} target="_blank" style={{
+                                            background: '#fff',
+                                            borderRadius: '16px',
+                                            overflow: 'hidden',
+                                            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                                            textDecoration: 'none',
+                                            color: 'inherit',
+                                            display: 'block'
+                                        }}>
+                                            <div style={{
+                                                width: '100%',
+                                                height: '180px',
+                                                backgroundImage: `url(${shop.photo.pc.l})`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center'
+                                            }} />
+                                            <div style={{ padding: '1.2rem' }}>
+                                                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '0.5rem' }}>{shop.name}</h3>
+                                                <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.8rem' }}>
+                                                    {shop.genre.catch || shop.genre.name}
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666' }}>
+                                                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: '1rem' }}>
+                                                        {get_budget_display(shop.budget.average)}
+                                                    </div>
+                                                    <div style={{ background: '#f0f0f0', padding: '0.3rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem' }}>
+                                                        {shop.access}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {!is_loading && !error_message && restaurants_list.length === 0 && api_key && (
+                            <div style={{ background: 'rgba(255,255,255,0.9)', padding: '3rem', borderRadius: '16px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+                                <p style={{ fontSize: '1.2rem', color: '#666' }}>条件に合うお店が見つかりませんでした</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.9)', padding: '1.5rem', textAlign: 'center', borderTop: '2px solid rgba(102,126,234,0.3)' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                            Powered by <a href="https://webservice.recruit.co.jp/" target="_blank" style={{ color: '#667eea', fontWeight: 700 }}>
+                                ホットペッパーグルメ Webサービス
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<RestaurantFinderAPI />, document.getElementById('root'));
+    </script>
+</body>
+</html>
