@@ -1,13 +1,15 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ホットペッパーグルメAPI プロキシサーバー
+Render対応版
 """
 
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.request
 import urllib.parse
 import json
+import os
 from urllib.error import URLError, HTTPError
 
 class ProxyHandler(SimpleHTTPRequestHandler):
@@ -75,13 +77,12 @@ class ProxyHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
 def run_server(port=8000):
-    server_address = ('', port)
+    server_address = ('0.0.0.0', port)  # Render用に0.0.0.0にバインド
     httpd = HTTPServer(server_address, ProxyHandler)
     print(f"")
     print(f"🍴 グルメファインダー サーバー起動")
     print(f"=" * 50)
-    print(f"サーバーアドレス: http://localhost:{port}")
-    print(f"アプリURL: http://localhost:{port}/restaurant_finder.html")
+    print(f"サーバーアドレス: http://0.0.0.0:{port}")
     print(f"=" * 50)
     print(f"サーバーを停止するには Ctrl+C を押してください")
     print(f"")
@@ -94,4 +95,6 @@ def run_server(port=8000):
         print(f"サーバーを停止しました")
 
 if __name__ == '__main__':
-    run_server(8000)
+    # Renderの環境変数からポート番号を取得（デフォルトは8000）
+    port = int(os.environ.get('PORT', 8000))
+    run_server(port)

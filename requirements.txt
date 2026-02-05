@@ -1,0 +1,2 @@
+# 依存関係は標準ライブラリのみ使用
+# requirements.txtは空でOK
